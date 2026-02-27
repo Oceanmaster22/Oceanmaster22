@@ -10,13 +10,13 @@ st.title("🏸 Weekly Badminton Scheduler")
 # Players and skill points (1-5)
 names = ['Benji','Gopika','Ioannis','Jazzi','Kamal','Simon','Sooraj']
 skills = {
-    'Benji': 5,
+    'Benji': 3,
     'Gopika': 2,
-    'Ioannis': 4,
-    'Jazzi': 1,
+    'Ioannis': 2,
+    'Jazzi': 5,
     'Kamal': 4,
     'Simon': 3,
-    'Sooraj': 4
+    'Sooraj': 3
 }
 
 def best_team_split(group):
@@ -81,4 +81,5 @@ if st.button("Generate This Week's Games"):
         "Player": list(counts.keys()),
         "Games Played": list(counts.values())
     })
+
     st.table(df_counts)
