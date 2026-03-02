@@ -87,17 +87,14 @@ def get_current_week():
 def best_team_split(group):
     best_diff = float('inf')
     best_pairing = None
-
     for team1 in combinations(group, 2):
         team2 = tuple(p for p in group if p not in team1)
         skill1 = sum(skills[p] for p in team1)
         skill2 = sum(skills[p] for p in team2)
         diff = abs(skill1 - skill2)
-
         if diff < best_diff:
             best_diff = diff
             best_pairing = (team1, team2)
-
     return best_pairing
 
 def generate_5_games(players):
@@ -110,7 +107,6 @@ def generate_5_games(players):
         possible_groups = list(combinations(players, 4))
         random.shuffle(possible_groups)
         found = False
-
         for group in possible_groups:
             if all(game_counts[p] < 3 for p in group):
                 team1, team2 = best_team_split(group)
@@ -119,10 +115,8 @@ def generate_5_games(players):
                     game_counts[p] += 1
                 found = True
                 break
-
         if not found:
             break
-
     return games
 
 # ==========================================
@@ -130,7 +124,6 @@ def generate_5_games(players):
 # ==========================================
 
 if len(players) >= 4:
-
     available = st.multiselect(
         "Select Available Players This Week",
         players,
@@ -138,7 +131,6 @@ if len(players) >= 4:
     )
 
     if st.button("🏸 Generate This Week's 5 Games"):
-
         if len(available) < 4:
             st.warning("Need at least 4 players.")
         else:
@@ -155,7 +147,6 @@ if len(players) >= 4:
                 else:
                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     rows = []
-
                     for i, (t1, t2) in enumerate(games, 1):
                         rows.append({
                             "Week_Key": week_key,
@@ -167,7 +158,6 @@ if len(players) >= 4:
                             "Team 2 Skill": sum(skills[p] for p in t2),
                             "Result": ""
                         })
-
                     updated = pd.concat([history, pd.DataFrame(rows)])
                     updated.to_csv(SCHEDULE_FILE, index=False)
                     st.success("5 Games Created!")
@@ -178,16 +168,14 @@ if len(players) >= 4:
 # ==========================================
 
 st.subheader("📅 Weekly Games")
-
 history = pd.read_csv(SCHEDULE_FILE)
 
-# 🔥 CRITICAL FIX — force Result to string
+# Force Result column to string to prevent Streamlit crash
 if "Result" in history.columns:
     history["Result"] = history["Result"].astype(str)
     history["Result"] = history["Result"].replace("nan", "")
 
 if not history.empty:
-
     edited = st.data_editor(
         history,
         num_rows="fixed",
@@ -207,15 +195,12 @@ if not history.empty:
 
     with col1:
         if st.button("💾 Save Results & Update Leaderboard"):
-
             edited.to_csv(SCHEDULE_FILE, index=False)
 
             # Recalculate leaderboard from scratch
             stats = {}
-
             for _, row in edited.iterrows():
                 result = str(row["Result"]).replace(" ", "")
-
                 if result and "-" in result:
                     try:
                         s1, s2 = map(int, result.split("-"))
@@ -234,11 +219,9 @@ if not history.empty:
                         for p in winners:
                             stats.setdefault(p, {"Wins":0,"Losses":0})
                             stats[p]["Wins"] += 1
-
                         for p in losers:
                             stats.setdefault(p, {"Wins":0,"Losses":0})
                             stats[p]["Losses"] += 1
-
                     except:
                         continue
 
@@ -246,7 +229,6 @@ if not history.empty:
                 {"Player": p, "Wins": v["Wins"], "Losses": v["Losses"]}
                 for p, v in stats.items()
             ])
-
             stats_df.to_csv(STATS_FILE, index=False)
             st.success("Leaderboard Updated!")
             st.rerun()
@@ -258,7 +240,6 @@ if not history.empty:
     with col2:
         week_list = sorted(history["Week_Key"].unique())
         delete_week = st.selectbox("Select Week to Delete", ["None"] + week_list)
-
         if delete_week != "None":
             if st.button("🗑 Delete Selected Week"):
                 updated_history = history[history["Week_Key"] != delete_week]
@@ -274,21 +255,24 @@ st.subheader("🏆 Leaderboard")
 
 if os.path.exists(STATS_FILE):
     stats_df = pd.read_csv(STATS_FILE)
-
     if not stats_df.empty:
-
         stats_df = stats_df.sort_values("Wins", ascending=False)
-
         stats_df["Win %"] = (
-            stats_df["Wins"] /
-            (stats_df["Wins"] + stats_df["Losses"])
+            stats_df["Wins"] / (stats_df["Wins"] + stats_df["Losses"])
         ).fillna(0).round(2)
-
         st.table(stats_df)
-
         st.subheader("📊 Wins vs Losses")
         chart_data = stats_df.set_index("Player")[["Wins", "Losses"]]
         st.bar_chart(chart_data)
-
     else:
         st.info("No results yet.")
+
+# ==========================================
+# ⚠️ CLEAR LEADERBOARD
+# ==========================================
+
+st.subheader("⚠️ Leaderboard Management")
+if st.button("🧹 Clear Leaderboard (Reset Wins/Losses)"):
+    pd.DataFrame(columns=["Player","Wins","Losses"]).to_csv(STATS_FILE, index=False)
+    st.success("Leaderboard cleared!")
+    st.rerun()
