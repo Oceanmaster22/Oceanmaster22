@@ -169,10 +169,9 @@ if st.button("🏸 Generate This Week's 5 Games"):
             games = generate_5_games(available_players)
 
             if len(games) < 5:
-                st.warning("Could not generate 5 fair games with current players.")
+                st.warning("Could not generate 5 fair games.")
             else:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
                 new_rows = []
 
                 for i, (team1, team2) in enumerate(games, 1):
@@ -197,7 +196,7 @@ if st.button("🏸 Generate This Week's 5 Games"):
                 st.table(pd.DataFrame(new_rows))
 
 # ================================
-# 📅 Show Weekly History
+# 📅 Weekly History + Delete Option
 # ================================
 
 st.subheader("📅 Weekly History")
@@ -206,11 +205,27 @@ history = pd.read_csv(DATA_FILE)
 
 if not history.empty:
 
+    # Edit results
     edited = st.data_editor(history, num_rows="fixed")
 
-    if st.button("💾 Save Results"):
-        edited.to_csv(DATA_FILE, index=False)
-        st.success("Results saved successfully!")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("💾 Save Results"):
+            edited.to_csv(DATA_FILE, index=False)
+            st.success("Results saved successfully!")
+
+    # Delete week option
+    with col2:
+        week_list = sorted(history["Week_Key"].unique())
+        delete_week = st.selectbox("Select Week to Delete", ["None"] + week_list)
+
+        if delete_week != "None":
+            if st.button("🗑 Delete Selected Week"):
+                updated_history = history[history["Week_Key"] != delete_week]
+                updated_history.to_csv(DATA_FILE, index=False)
+                st.success(f"{delete_week} deleted successfully!")
+                st.rerun()
 
 else:
     st.info("No games generated yet.")
