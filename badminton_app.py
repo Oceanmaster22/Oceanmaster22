@@ -1,20 +1,44 @@
-# File: badminton_app.py
-import random
-from itertools import combinations
+# ================================
+# 🏸 Badminton Weekly Scheduler
+# ================================
+
 import streamlit as st
 import pandas as pd
+import random
+import os
+from itertools import combinations
+from datetime import datetime
 
 st.set_page_config(page_title="🏸 Badminton Scheduler", layout="wide")
 st.title("🏸 Weekly Badminton Scheduler")
 
+# ================================
+# 📁 Persistent Storage File
+# ================================
+
+DATA_FILE = "weekly_schedule.csv"
+
+if not os.path.exists(DATA_FILE):
+    pd.DataFrame(columns=[
+        "Week_Key",
+        "Timestamp",
+        "Team 1",
+        "Team 2",
+        "Team 1 Skill",
+        "Team 2 Skill",
+        "Result"
+    ]).to_csv(DATA_FILE, index=False)
+
+# ================================
+# 👥 Player Management
+# ================================
+
 st.sidebar.header("➕ Add Players")
 
-# Store players in session state
 if "players" not in st.session_state:
     st.session_state.players = {}
 
-# Add player form
-with st.sidebar.form("add_player"):
+with st.sidebar.form("add_player_form"):
     name = st.text_input("Player Name")
     skill = st.slider("Skill Level", 1, 5, 3)
     submitted = st.form_submit_button("Add Player")
@@ -23,11 +47,13 @@ with st.sidebar.form("add_player"):
         st.session_state.players[name] = skill
         st.success(f"{name} added!")
 
-# Remove player option
+# Remove player
 if st.session_state.players:
     remove_player = st.sidebar.selectbox(
-        "Remove Player", ["None"] + list(st.session_state.players.keys())
+        "Remove Player",
+        ["None"] + list(st.session_state.players.keys())
     )
+
     if remove_player != "None":
         if st.sidebar.button("Remove Selected Player"):
             del st.session_state.players[remove_player]
@@ -37,87 +63,115 @@ players = list(st.session_state.players.keys())
 skills = st.session_state.players
 
 st.subheader("👥 Current Players")
+
 if players:
     st.table(pd.DataFrame({
         "Player": players,
         "Skill": [skills[p] for p in players]
     }))
 else:
-    st.info("Add at least 4 players to generate games.")
+    st.info("Add at least 4 players to generate a team.")
 
-# Availability selection
+# ================================
+# 🗓 Week Helper
+# ================================
+
+def get_current_week():
+    now = datetime.now()
+    year, week, _ = now.isocalendar()
+    return f"{year}-W{week}"
+
+# ================================
+# ⚖️ Team Balancing
+# ================================
+
+def best_team_split(group):
+    best_diff = float('inf')
+    best_pairing = None
+
+    for team1 in combinations(group, 2):
+        team2 = tuple(p for p in group if p not in team1)
+        skill1 = sum(skills[p] for p in team1)
+        skill2 = sum(skills[p] for p in team2)
+        diff = abs(skill1 - skill2)
+
+        if diff < best_diff:
+            best_diff = diff
+            best_pairing = (team1, team2)
+
+    return best_pairing
+
+# ================================
+# ✅ Availability Selection
+# ================================
+
 if len(players) >= 4:
-    st.subheader("✅ Select Available Players for This Week")
+    st.subheader("✅ Select Available Players This Week")
     available_players = st.multiselect(
-        "Who is playing this week?",
+        "Who is playing?",
         players,
         default=players
     )
 else:
     available_players = []
 
-def best_team_split(group):
-    best_diff = float('inf')
-    best_pairing = None
-    for team1 in combinations(group, 2):
-        team2 = tuple(p for p in group if p not in team1)
-        skill1 = sum(skills[p] for p in team1)
-        skill2 = sum(skills[p] for p in team2)
-        diff = abs(skill1 - skill2)
-        if diff < best_diff:
-            best_diff = diff
-            best_pairing = (team1, team2)
-    return best_pairing
+# ================================
+# 🏸 Generate Weekly Team
+# ================================
 
-def generate_week(players):
-    players = players.copy()
-    random.shuffle(players)
-    game_counts = {p: 0 for p in players}
-    games = []
+if st.button("🏸 Generate This Week's Team"):
 
-    while len(games) < 5:
-        possible = list(combinations(players, 4))
-        random.shuffle(possible)
-        found_game = False
-
-        for group in possible:
-            if all(game_counts[p] < 3 for p in group):
-                team1, team2 = best_team_split(group)
-                games.append((team1, team2))
-                for p in group:
-                    game_counts[p] += 1
-                found_game = True
-                break
-
-        if not found_game:
-            break
-
-    return games, game_counts
-
-# Generate schedule
-if st.button("🏸 Generate This Week's Games"):
     if len(available_players) < 4:
-        st.warning("Need at least 4 available players!")
+        st.warning("Need at least 4 available players.")
     else:
-        games, counts = generate_week(available_players)
+        week_key = get_current_week()
+        history = pd.read_csv(DATA_FILE)
 
-        game_list = []
-        for i, (t1, t2) in enumerate(games, 1):
-            s1 = sum(skills[p] for p in t1)
-            s2 = sum(skills[p] for p in t2)
-            game_list.append({
-                "Game": f"Game {i}",
-                "Team 1": f"{t1[0]} & {t1[1]}",
+        existing = history[history["Week_Key"] == week_key]
+
+        if not existing.empty:
+            st.success(f"Team already generated for {week_key}")
+            st.table(existing)
+        else:
+            group = random.sample(available_players, 4)
+            team1, team2 = best_team_split(group)
+
+            s1 = sum(skills[p] for p in team1)
+            s2 = sum(skills[p] for p in team2)
+
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            new_row = pd.DataFrame([{
+                "Week_Key": week_key,
+                "Timestamp": timestamp,
+                "Team 1": f"{team1[0]} & {team1[1]}",
+                "Team 2": f"{team2[0]} & {team2[1]}",
                 "Team 1 Skill": s1,
-                "Team 2": f"{t2[0]} & {t2[1]}",
-                "Team 2 Skill": s2
-            })
+                "Team 2 Skill": s2,
+                "Result": ""
+            }])
 
-        st.subheader("🏸 This Week's Games")
-        st.table(pd.DataFrame(game_list))
+            updated = pd.concat([history, new_row])
+            updated.to_csv(DATA_FILE, index=False)
 
-        st.subheader("📊 Game Count Per Player")
-        st.table(pd.DataFrame({
-            "Player": list(counts.keys()),
-            "Games Played": list(counts.values())
-        }))
+            st.success(f"Team created for {week_key}")
+            st.table(new_row)
+
+# ================================
+# 📅 Show Weekly History
+# ================================
+
+st.subheader("📅 Weekly History")
+
+history = pd.read_csv(DATA_FILE)
+
+if not history.empty:
+
+    edited = st.data_editor(history, num_rows="fixed")
+
+    if st.button("💾 Save Results"):
+        edited.to_csv(DATA_FILE, index=False)
+        st.success("Results saved successfully!")
+
+else:
+    st.info("No teams generated yet.")
