@@ -22,6 +22,7 @@ if not os.path.exists(DATA_FILE):
     pd.DataFrame(columns=[
         "Week_Key",
         "Timestamp",
+        "Game",
         "Team 1",
         "Team 2",
         "Team 1 Skill",
@@ -70,7 +71,7 @@ if players:
         "Skill": [skills[p] for p in players]
     }))
 else:
-    st.info("Add at least 4 players to generate a team.")
+    st.info("Add at least 4 players to generate games.")
 
 # ================================
 # 🗓 Week Helper
@@ -102,6 +103,38 @@ def best_team_split(group):
     return best_pairing
 
 # ================================
+# 🏸 Generate 5 Games Logic
+# ================================
+
+def generate_5_games(players):
+    players = players.copy()
+    random.shuffle(players)
+
+    game_counts = {p: 0 for p in players}
+    games = []
+
+    while len(games) < 5:
+        possible_groups = list(combinations(players, 4))
+        random.shuffle(possible_groups)
+        found = False
+
+        for group in possible_groups:
+            if all(game_counts[p] < 3 for p in group):
+                team1, team2 = best_team_split(group)
+                games.append((team1, team2))
+
+                for p in group:
+                    game_counts[p] += 1
+
+                found = True
+                break
+
+        if not found:
+            break
+
+    return games
+
+# ================================
 # ✅ Availability Selection
 # ================================
 
@@ -116,10 +149,10 @@ else:
     available_players = []
 
 # ================================
-# 🏸 Generate Weekly Team
+# 🏸 Generate Weekly Schedule
 # ================================
 
-if st.button("🏸 Generate This Week's Team"):
+if st.button("🏸 Generate This Week's 5 Games"):
 
     if len(available_players) < 4:
         st.warning("Need at least 4 available players.")
@@ -130,32 +163,38 @@ if st.button("🏸 Generate This Week's Team"):
         existing = history[history["Week_Key"] == week_key]
 
         if not existing.empty:
-            st.success(f"Team already generated for {week_key}")
+            st.success(f"Games already generated for {week_key}")
             st.table(existing)
         else:
-            group = random.sample(available_players, 4)
-            team1, team2 = best_team_split(group)
+            games = generate_5_games(available_players)
 
-            s1 = sum(skills[p] for p in team1)
-            s2 = sum(skills[p] for p in team2)
+            if len(games) < 5:
+                st.warning("Could not generate 5 fair games with current players.")
+            else:
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                new_rows = []
 
-            new_row = pd.DataFrame([{
-                "Week_Key": week_key,
-                "Timestamp": timestamp,
-                "Team 1": f"{team1[0]} & {team1[1]}",
-                "Team 2": f"{team2[0]} & {team2[1]}",
-                "Team 1 Skill": s1,
-                "Team 2 Skill": s2,
-                "Result": ""
-            }])
+                for i, (team1, team2) in enumerate(games, 1):
+                    s1 = sum(skills[p] for p in team1)
+                    s2 = sum(skills[p] for p in team2)
 
-            updated = pd.concat([history, new_row])
-            updated.to_csv(DATA_FILE, index=False)
+                    new_rows.append({
+                        "Week_Key": week_key,
+                        "Timestamp": timestamp,
+                        "Game": f"Game {i}",
+                        "Team 1": f"{team1[0]} & {team1[1]}",
+                        "Team 2": f"{team2[0]} & {team2[1]}",
+                        "Team 1 Skill": s1,
+                        "Team 2 Skill": s2,
+                        "Result": ""
+                    })
 
-            st.success(f"Team created for {week_key}")
-            st.table(new_row)
+                updated = pd.concat([history, pd.DataFrame(new_rows)])
+                updated.to_csv(DATA_FILE, index=False)
+
+                st.success(f"5 Games created for {week_key}")
+                st.table(pd.DataFrame(new_rows))
 
 # ================================
 # 📅 Show Weekly History
@@ -174,4 +213,4 @@ if not history.empty:
         st.success("Results saved successfully!")
 
 else:
-    st.info("No teams generated yet.")
+    st.info("No games generated yet.")
