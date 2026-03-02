@@ -13,7 +13,7 @@ st.set_page_config(page_title="🏸 Badminton League", layout="wide")
 st.title("🏸 Weekly Badminton League Manager")
 
 # ==========================================
-# 📁 Storage Files
+# 📁 FILE STORAGE
 # ==========================================
 
 SCHEDULE_FILE = "weekly_schedule.csv"
@@ -33,7 +33,7 @@ if not os.path.exists(STATS_FILE):
     ]).to_csv(STATS_FILE, index=False)
 
 # ==========================================
-# 👥 Player Management
+# 👥 PLAYER MANAGEMENT
 # ==========================================
 
 st.sidebar.header("➕ Add Players")
@@ -50,7 +50,6 @@ with st.sidebar.form("add_player"):
         st.session_state.players[name] = skill
         st.success(f"{name} added!")
 
-# Remove player
 if st.session_state.players:
     remove_player = st.sidebar.selectbox(
         "Remove Player",
@@ -60,7 +59,7 @@ if st.session_state.players:
     if remove_player != "None":
         if st.sidebar.button("Remove Selected Player"):
             del st.session_state.players[remove_player]
-            st.sidebar.success(f"{remove_player} removed!")
+            st.rerun()
 
 players = list(st.session_state.players.keys())
 skills = st.session_state.players
@@ -73,7 +72,7 @@ if players:
     }))
 
 # ==========================================
-# 🗓 Current Week
+# 🗓 WEEK KEY
 # ==========================================
 
 def get_current_week():
@@ -82,7 +81,7 @@ def get_current_week():
     return f"{year}-W{week}"
 
 # ==========================================
-# ⚖️ Team Balancing
+# ⚖️ TEAM BALANCING
 # ==========================================
 
 def best_team_split(group):
@@ -127,7 +126,7 @@ def generate_5_games(players):
     return games
 
 # ==========================================
-# 🏸 Generate Weekly Games
+# 🏸 GENERATE WEEK
 # ==========================================
 
 if len(players) >= 4:
@@ -171,11 +170,11 @@ if len(players) >= 4:
 
                     updated = pd.concat([history, pd.DataFrame(rows)])
                     updated.to_csv(SCHEDULE_FILE, index=False)
-
                     st.success("5 Games Created!")
+                    st.rerun()
 
 # ==========================================
-# 📅 Weekly History + Results
+# 📅 WEEKLY GAMES + RESULTS
 # ==========================================
 
 st.subheader("📅 Weekly Games")
@@ -184,23 +183,35 @@ history = pd.read_csv(SCHEDULE_FILE)
 
 if not history.empty:
 
-    edited = st.data_editor(history, num_rows="fixed")
+    edited = st.data_editor(
+        history,
+        num_rows="fixed",
+        column_config={
+            "Result": st.column_config.TextColumn(
+                "Result (Team1-Team2)",
+                help="Enter score like 21-18",
+            )
+        }
+    )
 
     col1, col2 = st.columns(2)
 
-    # Save Results
+    # SAVE RESULTS
     with col1:
         if st.button("💾 Save Results & Update Leaderboard"):
+
             edited.to_csv(SCHEDULE_FILE, index=False)
 
             stats = {}
 
             for _, row in edited.iterrows():
-                if pd.notna(row["Result"]):
+                if pd.notna(row["Result"]) and row["Result"] != "":
                     clean = str(row["Result"]).replace(" ", "")
+
                     if "-" in clean:
                         try:
                             s1, s2 = map(int, clean.split("-"))
+
                             team1 = row["Team 1"].split(" & ")
                             team2 = row["Team 2"].split(" & ")
 
@@ -220,6 +231,7 @@ if not history.empty:
                             for p in losers:
                                 stats.setdefault(p, {"Wins":0,"Losses":0})
                                 stats[p]["Losses"] += 1
+
                         except:
                             continue
 
@@ -230,8 +242,9 @@ if not history.empty:
 
             stats_df.to_csv(STATS_FILE, index=False)
             st.success("Leaderboard Updated!")
+            st.rerun()
 
-    # Delete Week
+    # DELETE WEEK
     with col2:
         week_list = sorted(history["Week_Key"].unique())
         delete_week = st.selectbox("Select Week to Delete", ["None"] + week_list)
@@ -244,7 +257,7 @@ if not history.empty:
                 st.rerun()
 
 # ==========================================
-# 🏆 Leaderboard
+# 🏆 LEADERBOARD
 # ==========================================
 
 st.subheader("🏆 Leaderboard")
@@ -253,9 +266,9 @@ if os.path.exists(STATS_FILE):
     stats_df = pd.read_csv(STATS_FILE)
 
     if not stats_df.empty:
+
         stats_df = stats_df.sort_values("Wins", ascending=False)
 
-        # Win Percentage
         stats_df["Win %"] = (
             stats_df["Wins"] /
             (stats_df["Wins"] + stats_df["Losses"])
@@ -263,8 +276,9 @@ if os.path.exists(STATS_FILE):
 
         st.table(stats_df)
 
-        st.subheader("📊 Wins vs Losses Chart")
+        st.subheader("📊 Wins vs Losses")
         chart_data = stats_df.set_index("Player")[["Wins", "Losses"]]
         st.bar_chart(chart_data)
+
     else:
         st.info("No results yet.")
