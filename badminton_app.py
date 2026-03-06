@@ -100,23 +100,46 @@ def best_team_split(group):
 def generate_5_games(players):
     players = players.copy()
     random.shuffle(players)
+
     game_counts = {p: 0 for p in players}
+    used_teams = set()  # Track teams already used
     games = []
 
-    while len(games) < 5:
+    attempts = 0
+    max_attempts = 500
+
+    while len(games) < 5 and attempts < max_attempts:
+        attempts += 1
+
         possible_groups = list(combinations(players, 4))
         random.shuffle(possible_groups)
-        found = False
+
         for group in possible_groups:
-            if all(game_counts[p] < 3 for p in group):
-                team1, team2 = best_team_split(group)
-                games.append((team1, team2))
-                for p in group:
-                    game_counts[p] += 1
-                found = True
-                break
-        if not found:
+
+            # Player max games condition
+            if not all(game_counts[p] < 3 for p in group):
+                continue
+
+            team1, team2 = best_team_split(group)
+
+            team1_sorted = tuple(sorted(team1))
+            team2_sorted = tuple(sorted(team2))
+
+            # 🚫 Prevent repeating same team
+            if team1_sorted in used_teams or team2_sorted in used_teams:
+                continue
+
+            # Accept game
+            games.append((team1, team2))
+
+            used_teams.add(team1_sorted)
+            used_teams.add(team2_sorted)
+
+            for p in group:
+                game_counts[p] += 1
+
             break
+
     return games
 
 # ==========================================
@@ -276,3 +299,4 @@ if st.button("🧹 Clear Leaderboard (Reset Wins/Losses)"):
     pd.DataFrame(columns=["Player","Wins","Losses"]).to_csv(STATS_FILE, index=False)
     st.success("Leaderboard cleared!")
     st.rerun()
+
